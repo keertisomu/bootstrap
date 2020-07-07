@@ -115,10 +115,10 @@
       selector = selector && /#/.test(selector) && selector.replace(/.*(?=#[^\s]*$)/, '') //strip for ie7
     }
 
-    $parent = $(selector)
-    $parent.length || ($parent = $this.parent())
+      // https://github.com/twbs/bootstrap/commit/29f9237f735b90dbc89e003db0c62dec2db0b308?diff=split
+      $parent = selector && $(document).find(selector)
 
-    return $parent
+      return $parent && $parent.length ? $parent : $this.parent()
   }
 
 

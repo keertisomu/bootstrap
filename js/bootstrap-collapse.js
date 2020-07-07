@@ -159,9 +159,13 @@
       , target = $this.attr('data-target')
         || e.preventDefault()
         || (href = $this.attr('href')) && href.replace(/.*(?=#[^\s]+$)/, '') //strip for ie7
-      , option = $(target).data('collapse') ? 'toggle' : $this.data()
-    $this[$(target).hasClass('in') ? 'addClass' : 'removeClass']('collapsed')
-    $(target).collapse(option)
+
+     // https://github.com/twbs/bootstrap/commit/29f9237f735b90dbc89e003db0c62dec2db0b308?diff=split
+     var $target = $(document).find(target);
+
+     var option = $target.data('collapse') ? 'toggle' : $this.data()
+     $this[$target.hasClass('in') ? 'addClass' : 'removeClass']('collapsed')
+     $target.collapse(option)
   })
 
 }(window.jQuery);

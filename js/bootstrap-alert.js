@@ -41,8 +41,10 @@
       selector = selector && selector.replace(/.*(?=#[^\s]*$)/, '') //strip for ie7
     }
 
-    $parent = $(selector)
-
+    // https://github.com/twbs/bootstrap/commit/29f9237f735b90dbc89e003db0c62dec2db0b308?diff=split
+    selector = selector === '#' ? [] : selector
+    $parent = $(document).find(selector)
+  
     e && e.preventDefault()
 
     $parent.length || ($parent = $this.hasClass('alert') ? $this : $this.parent())

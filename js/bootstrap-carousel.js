@@ -175,9 +175,19 @@
   * ================= */
 
   $(document).on('click.carousel.data-api', '[data-slide]', function (e) {
-    var $this = $(this), href
-      , $target = $($this.attr('data-target') || (href = $this.attr('href')) && href.replace(/.*(?=#[^\s]+$)/, '')) //strip for ie7
-      , options = $.extend({}, $target.data(), $this.data())
+
+     // https://github.com/twbs/bootstrap/commit/29f9237f735b90dbc89e003db0c62dec2db0b308?diff=split
+     var $this = $(this)
+     var href = $this.attr('href')
+     if (href) {
+         href = href.replace(/.*(?=#[^\s]+$)/, '') // strip for ie7
+     }
+
+     var target = $this.attr('data-target') || href
+     var $target = $(document).find(target)
+
+     var options = $.extend({}, $target.data(), $this.data())
+
     $target.carousel(options)
     e.preventDefault()
   })
