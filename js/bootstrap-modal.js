@@ -230,8 +230,11 @@
   $(document).on('click.modal.data-api', '[data-toggle="modal"]', function (e) {
     var $this = $(this)
       , href = $this.attr('href')
-      , $target = $($this.attr('data-target') || (href && href.replace(/.*(?=#[^\s]+$)/, ''))) //strip for ie7
-      , option = $target.data('modal') ? 'toggle' : $.extend({ remote:!/#/.test(href) && href }, $target.data(), $this.data())
+      
+     // https://github.com/twbs/bootstrap/commit/29f9237f735b90dbc89e003db0c62dec2db0b308?diff=split
+     var target  = $this.attr('data-target') || (href && href.replace(/.*(?=#[^\s]+$)/, '')) //strip for ie7
+     var $target = $(document).find(target)
+     var option = $target.data('modal') ? 'toggle' : $.extend({ remote:!/#/.test(href) && href }, $target.data(), $this.data())
 
     e.preventDefault()
 
