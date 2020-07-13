@@ -23,6 +23,137 @@
 
   "use strict"; // jshint ;_;
 
+  var DISALLOWED_ATTRIBUTES = ['sanitize', 'whiteList', 'sanitizeFn']
+
+  var uriAttrs = [
+    'background',
+    'cite',
+    'href',
+    'itemtype',
+    'longdesc',
+    'poster',
+    'src',
+    'xlink:href'
+  ]
+
+  var ARIA_ATTRIBUTE_PATTERN = /^aria-[\w-]*$/i
+
+  var DefaultWhitelist = {
+    // Global attributes allowed on any supplied element below.
+    '*': ['class', 'dir', 'id', 'lang', 'role', ARIA_ATTRIBUTE_PATTERN],
+    a: ['target', 'href', 'title', 'rel'],
+    area: [],
+    b: [],
+    br: [],
+    col: [],
+    code: [],
+    div: [],
+    em: [],
+    hr: [],
+    h1: [],
+    h2: [],
+    h3: [],
+    h4: [],
+    h5: [],
+    h6: [],
+    i: [],
+    img: ['src', 'alt', 'title', 'width', 'height'],
+    li: [],
+    ol: [],
+    p: [],
+    pre: [],
+    s: [],
+    small: [],
+    span: [],
+    sub: [],
+    sup: [],
+    strong: [],
+    u: [],
+    ul: []
+  }
+
+  /**
+   * A pattern that recognizes a commonly useful subset of URLs that are safe.
+   *
+   * Shoutout to Angular 7 https://github.com/angular/angular/blob/7.2.4/packages/core/src/sanitization/url_sanitizer.ts
+   */
+  var SAFE_URL_PATTERN = /^(?:(?:https?|mailto|ftp|tel|file):|[^&:/?#]*(?:[/?#]|$))/gi
+
+  /**
+   * A pattern that matches safe data URLs. Only matches image, video and audio types.
+   *
+   * Shoutout to Angular 7 https://github.com/angular/angular/blob/7.2.4/packages/core/src/sanitization/url_sanitizer.ts
+   */
+  var DATA_URL_PATTERN = /^data:(?:image\/(?:bmp|gif|jpeg|jpg|png|tiff|webp)|video\/(?:mpeg|mp4|ogg|webm)|audio\/(?:mp3|oga|ogg|opus));base64,[a-z0-9+/]+=*$/i
+
+  function allowedAttribute(attr, allowedAttributeList) {
+    var attrName = attr.nodeName.toLowerCase()
+
+    if ($.inArray(attrName, allowedAttributeList) !== -1) {
+      if ($.inArray(attrName, uriAttrs) !== -1) {
+        return Boolean(attr.nodeValue.match(SAFE_URL_PATTERN) || attr.nodeValue.match(DATA_URL_PATTERN))
+      }
+
+      return true
+    }
+
+    var regExp = $(allowedAttributeList).filter(function (index, value) {
+      return value instanceof RegExp
+    })
+
+    // Check if a regular expression validates the attribute.
+    for (var i = 0, l = regExp.length; i < l; i++) {
+      if (attrName.match(regExp[i])) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  function sanitizeHtml(unsafeHtml, whiteList, sanitizeFn) {
+    if (unsafeHtml.length === 0) {
+      return unsafeHtml
+    }
+
+    if (sanitizeFn && typeof sanitizeFn === 'function') {
+      return sanitizeFn(unsafeHtml)
+    }
+
+    // IE 8 and below don't support createHTMLDocument
+    if (!document.implementation || !document.implementation.createHTMLDocument) {
+      return unsafeHtml
+    }
+
+    var createdDocument = document.implementation.createHTMLDocument('sanitization')
+    createdDocument.body.innerHTML = unsafeHtml
+
+    var whitelistKeys = $.map(whiteList, function (el, i) { return i })
+    var elements = $(createdDocument.body).find('*')
+
+    for (var i = 0, len = elements.length; i < len; i++) {
+      var el = elements[i]
+      var elName = el.nodeName.toLowerCase()
+
+      if ($.inArray(elName, whitelistKeys) === -1) {
+        el.parentNode.removeChild(el)
+
+        continue
+      }
+
+      var attributeList = $.map(el.attributes, function (el) { return el })
+      var whitelistedAttributes = [].concat(whiteList['*'] || [], whiteList[elName] || [])
+
+      for (var j = 0, len2 = attributeList.length; j < len2; j++) {
+        if (!allowedAttribute(attributeList[j], whitelistedAttributes)) {
+          el.removeAttribute(attributeList[j].nodeName)
+        }
+      }
+    }
+
+    return createdDocument.body.innerHTML
+  }
+
 
  /* TOOLTIP PUBLIC CLASS DEFINITION
   * =============================== */
@@ -58,16 +189,28 @@
         this.fixTitle()
     }
 
-  , getOptions: function (options) {
-      options = $.extend({}, $.fn[this.type].defaults, options, this.$element.data())
-
+    , getOptions: function (options) {
+      var dataAttributes = this.$element.data()
+  
+      for (var dataAttr in dataAttributes) {
+        if (dataAttributes.hasOwnProperty(dataAttr) && $.inArray(dataAttr, DISALLOWED_ATTRIBUTES) !== -1) {
+          delete dataAttributes[dataAttr]
+        }
+      }
+  
+      options = $.extend({}, $.fn[this.type].defaults, options, dataAttributes)
+  
       if (options.delay && typeof options.delay == 'number') {
         options.delay = {
           show: options.delay
         , hide: options.delay
         }
       }
-
+  
+      if (options.sanitize) {
+        options.template = sanitizeHtml(options.template, options.whiteList, options.sanitizeFn)
+      }
+  
       return options
     }
 
@@ -151,11 +294,20 @@
     }
 
   , setContent: function () {
-      var $tip = this.tip()
-        , title = this.getTitle()
+    var $tip = this.tip()
+    , title = this.getTitle()
 
-      $tip.find('.tooltip-inner')[this.options.html ? 'html' : 'text'](title)
-      $tip.removeClass('fade in top bottom left right')
+    if (this.options.html) {
+      if (this.options.sanitize) {
+        title = sanitizeHtml(title, this.options.whiteList, this.options.sanitizeFn)
+      }
+
+      $tip.find('.tooltip-inner').html(title)
+    } else {
+      $tip.find('.tooltip-inner').text(title)
+    }
+
+    $tip.removeClass('fade in top bottom left right')
     }
 
   , hide: function () {
@@ -212,8 +364,8 @@
     }
 
   , tip: function () {
-      return this.$tip = this.$tip || $(this.options.template)
-    }
+    return this.$tip = this.$tip || $(this.options.template)
+  }
 
   , validate: function () {
       if (!this.$element[0].parentNode) {
@@ -244,6 +396,10 @@
       this.hide().$element.off('.' + this.type).removeData(this.type)
     }
 
+  , sanitizeHtml: function (unsafeHtml) {
+      return sanitizeHtml(unsafeHtml, this.options.whiteList, this.options.sanitizeFn)
+    }
+
   }
 
 
@@ -255,8 +411,8 @@
   $.fn.tooltip = function ( option ) {
     return this.each(function () {
       var $this = $(this)
-        , data = $this.data('tooltip')
-        , options = typeof option == 'object' && option
+      , data = $this.data('tooltip')
+      , options = typeof option == 'object' && option
       if (!data) $this.data('tooltip', (data = new Tooltip(this, options)))
       if (typeof option == 'string') data[option]()
     })
@@ -273,8 +429,15 @@
   , title: ''
   , delay: 0
   , html: false
+  , container: false
+  , viewport: {
+    selector: 'body',
+    padding: 0
   }
-
+  , sanitize : true
+  , sanitizeFn : null
+  , whiteList : DefaultWhitelist
+  }
 
  /* TOOLTIP NO CONFLICT
   * =================== */
